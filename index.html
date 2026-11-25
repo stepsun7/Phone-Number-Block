@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keysight Phone Number Block Request</title>
+  <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.11.1/bundle/libphonenumber-js.min.js"></script>
+  <style>
+    @import "https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css";
+    /* body {
+      font-family: Segoe UI, Arial, sans-serif;
+      max-width: 500px;
+      margin: 60px auto;
+      padding: 0 20px;
+    }
+    label {
+      display: block;
+      margin-top: 16px;
+      font-weight: bold;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 4px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 16px;
+      font-weight: bold;
+    } */
+  </style>
+</head>
+<body>
+
+  <h1 class="title">Phone Number Block Request Form</h1>
+
+  <form id="submitForm">
+    <div class="field">
+      <label class="label" for="phoneToBlock">
+        <span class="has-text-danger">*</span>
+        Please enter the phone number that you would like to have blocked, including the country code. (Ex. +11234567890)
+      </label>
+      <p class="help mb-2">Note: If you have multiple numbers, please create separate requests for each number.</p>
+      <div class="control">
+        <input class="input" type="tel" id="phoneToBlock" name="phoneToBlock" required>
+      </div>
+      <p id="phoneToBlockHelp" class="help"></p>
+    </div>
+
+    <div class="field">
+      <label class="label" for="requestor">
+        <span class="has-text-danger">*</span>
+        Please list the requestor's email
+      </label>
+      <div class="control">
+        <input class="input" type="email" id="requestor" name="requestor" required>
+      </div>
+      <p id="requestorHelp" class="help"></p>
+    </div>
+
+    <div class="field">
+      <label class="label" for="affectedEmail">
+        <span class="has-text-danger">*</span>
+        What is the affected user's email address?
+      </label>
+      <div class="control">
+        <input class="input" type="email" id="affectedEmail" name="affectedEmail" required>
+      </div>
+      <p id="affectedEmailHelp" class="help"></p>
+    </div>
+
+    <div class="field">
+      <label class="label" for="affectedPhone">
+        <span class="has-text-danger">*</span>
+        What is the affected user's phone number?
+      </label>
+      <div class="control">
+        <input class="input" type="tel" id="affectedPhone" name="affectedPhone" required>
+      </div>
+      <p id="affectedPhoneHelp" class="help"></p>
+    </div>
+
+    <!-- Remember to make these bottom fields required and figure out how to make questions appear conditionally -->
+    <div class="field">
+      <label class="label">
+        <span class="has-text-danger">*</span>
+        Are these spam calls a part of an impersonation or phishing attack?
+      </label>
+      <div class="control">
+        <label class="radio" for="phishingYes">
+          <input type="radio" id="phishingYes" name="phishing" value="yes" required/>
+          Yes
+        </label>
+        <label class="radio" for="phishingNo">
+          <input type="radio" id="phishingNo" name="phishing" value="no" required/>
+          No
+        </label>
+      </div>
+      <p id="phishingHelp" class="help"></p>
+    </div>
+
+    <div class="field" id="oneUserField">
+      <label class="label" for="oneUser">
+        <span class="has-text-danger">*</span>
+        Is this phone number only spamming one user?
+      </label>
+      <div class="control">
+        <label class="radio" for="oneUserYes">
+          <input type="radio" id="oneUserYes" name="oneUser" value="yes" required/>
+          Yes
+        </label>
+        <label class="radio" for="oneUserNo">
+          <input type="radio" id="oneUserNo" name="oneUser" value="no" required/>
+          No
+        </label>
+      </div>
+      <p id="oneUserHelp" class="help"></p>
+    </div>
+
+    <div class="field">
+      <div class="control">
+        <label class="label" for="agreeTermsInput">
+          <span class="has-text-danger">*</span>
+          I certify that the information submitted within this form is accurate to the best of my knowledge.
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="agreeTermsInput" name="agreeTermsInput" required/>
+          I agree
+        </label>
+      </div>
+      <p id="agreeTermsHelp" class="help"></p>
+    </div>
+
+    <div class="field">
+      <div class="control">
+        <button class="button is-primary is-dark" type="submit">Submit</button>
+      </div>
+    </div>
+  </form>
+
+  <p id="status"></p>
+
+  <script>
+    const form = document.getElementById('submitForm');
+    const status = document.getElementById('status');
+    const affectedPhoneInput = document.getElementById('affectedPhone');
+    const affectedPhoneHelp = document.getElementById('affectedPhoneHelp');
+
+    const phoneToBlockInput = document.getElementById('phoneToBlock');
+    const phoneToBlockHelp = document.getElementById('phoneToBlockHelp');
+    let phoneToBlockIsValid = false;
+
+    // Reusable helper: shows/clears red "required" text next to a field.
+    // inputElement: the <input> to outline in red
+    // helpElement: the <p class="help"> to fill with the message
+    // isFilled: a function returning true/false for "does this field count as filled?"
+    // message: text to show when the field is empty
+    function validateRequired(inputElement, helpElement, isFilled, message) {
+      if (isFilled()) {
+        helpElement.textContent = '';
+        helpElement.className = 'help';
+        inputElement.classList.remove('is-danger');
+        return true;
+      } else {
+        helpElement.textContent = message;
+        helpElement.className = 'help is-danger';
+        inputElement.classList.add('is-danger');
+        return false;
+      }
+    }
+
+    const requestorInput = document.getElementById('requestor');
+    const requestorHelp = document.getElementById('requestorHelp');
+    const affectedEmailInput = document.getElementById('affectedEmail');
+    const affectedEmailHelp = document.getElementById('affectedEmailHelp');
+    const phishingHelp = document.getElementById('phishingHelp');
+    const oneUserHelp = document.getElementById('oneUserHelp');
+    const agreeTermsInput = document.getElementById('agreeTermsInput');
+    const agreeTermsHelp = document.getElementById('agreeTermsHelp');
+
+    // Live validation on blur (when the user tabs/clicks away from the field)
+    requestorInput.addEventListener('blur', function () {
+      validateRequired(requestorInput, requestorHelp, () => requestorInput.value.trim() !== '', 'Requestor email is required.');
+    });
+
+    affectedEmailInput.addEventListener('blur', function () {
+      validateRequired(affectedEmailInput, affectedEmailHelp, () => affectedEmailInput.value.trim() !== '', 'Affected user\'s email is required.');
+    });
+
+    agreeTermsInput.addEventListener('change', function () {
+      validateRequired(agreeTermsInput, agreeTermsHelp, () => agreeTermsInput.checked, 'You must agree to the terms.');
+    });
+
+    // const oneUserField = document.getElementById('oneUserField');
+
+    // // Shows/hides the oneUser field based on which phishing answer is picked.
+    // // "Yes" -> hidden; "No" -> shown.
+    // function updateOneUserVisibility() {
+    //   const picked = document.querySelector('input[name="phishing"]:checked');
+    //   const shouldShow = picked && picked.value === 'no';
+
+    //   oneUserField.classList.toggle('is-hidden', !shouldShow);
+
+    //   if (!shouldShow) {
+    //     // Clear out any value/validation state left over from before it was hidden,
+    //     // so a stale value can't sneak into the payload or block submission later.
+    //     document.querySelectorAll('input[name="oneUser"]').forEach(radio => {
+    //       radio.checked = false;
+    //     });
+    //     oneUserHelp.textContent = '';
+    //     oneUserHelp.className = 'help';
+    //   }
+    // }
+
+    // document.querySelectorAll('input[name="phishing"]').forEach(function (radio) {
+    //   radio.addEventListener('change', function () {
+    //     const picked = document.querySelector('input[name="phishing"]:checked');
+    //     oneUserHelp.textContent = picked ? '' : 'Please select a contact method.';
+    //     oneUserHelp.className = picked ? 'help' : 'help is-danger';
+    //     updatePhoneVisibility();
+    //   });
+    // });
+
+    function getSubmissionTime() {
+      const now = new Date();
+      return now.toISOString(); // e.g. 2026-11-09T18:42:07.123Z
+    };
+    
+    function newRequestId() {
+      return crypto.randomUUID();
+    }
+
+    let requestId = newRequestId();
+
+    // No default country is passed, so the number must start with "+" and a country code.
+    function checkPhoneToBlock() {
+      const value = phoneToBlockInput.value.trim();
+
+      if (value === '') {
+        phoneToBlockIsValid = false;
+        phoneToBlockHelp.textContent = '';
+        phoneToBlockHelp.className = 'help';
+        phoneToBlockInput.classList.remove('is-danger', 'is-success');
+        return;
+      }
+
+      phoneToBlockIsValid = libphonenumber.isValidPhoneNumber(value);
+
+      if (phoneToBlockIsValid) {
+        phoneToBlockHelp.textContent = 'Valid phone number.';
+        phoneToBlockHelp.className = 'help is-success';
+        phoneToBlockInput.classList.remove('is-danger');
+        phoneToBlockInput.classList.add('is-success');
+      } else {
+        phoneToBlockHelp.textContent = 'Enter a valid phone number including the country code (e.g. +11234567890).';
+        phoneToBlockHelp.className = 'help is-danger';
+        phoneToBlockInput.classList.remove('is-success');
+        phoneToBlockInput.classList.add('is-danger');
+      }
+    }
+
+    phoneToBlockInput.addEventListener('input', checkPhoneToBlock);
+
+    // Tracks whether the phone number currently in the field is valid.
+    // Starts false since the field starts empty.
+    let phoneIsValid = false;
+
+    // Live validation: runs on every keystroke
+    affectedPhoneInput.addEventListener('input', function () {
+      const value = affectedPhoneInput.value.trim();
+
+      if (value === '') {
+        phoneIsValid = false;
+        affectedPhoneHelp.textContent = '';
+        affectedPhoneHelp.className = 'help';
+        affectedPhoneInput.classList.remove('is-danger', 'is-success');
+        return;
+      }
+
+      // isValidPhoneNumber expects a country code (e.g. "US") as a fallback
+      // for numbers typed without a leading "+country" prefix.
+      const valid = libphonenumber.isValidPhoneNumber(value, 'US');
+      phoneIsValid = valid;
+
+      if (valid) {
+        affectedPhoneHelp.textContent = 'Valid phone number.';
+        affectedPhoneHelp.className = 'help is-success';
+        affectedPhoneInput.classList.remove('is-danger');
+        affectedPhoneInput.classList.add('is-success');
+      } else {
+        affectedPhoneHelp.textContent = 'Enter a valid phone number.';
+        affectedPhoneHelp.className = 'help is-danger';
+        affectedPhoneInput.classList.remove('is-success');
+        affectedPhoneInput.classList.add('is-danger');
+      }
+    });
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault(); // stop the browser's default full-page reload
+
+      // Run every required-field check, so all red messages appear at once
+      // rather than only catching the first problem.
+      checkPhoneToBlock();
+      const phoneToBlockOk = phoneToBlockIsValid;
+      if (!phoneToBlockOk && phoneToBlockInput.value.trim() === '') {
+        phoneToBlockHelp.textContent = 'Phone number to block is required.';
+        phoneToBlockHelp.className = 'help is-danger';
+        phoneToBlockInput.classList.add('is-danger');
+      }
+      const requestorOk = validateRequired(requestorInput, requestorHelp, () => requestorInput.value.trim() !== '', 'Requestor email is required.');
+      const affectedEmailOk = validateRequired(affectedEmailInput, affectedEmailHelp, () => affectedEmailInput.value.trim() !== '', 'Affected user\'s email is required.');
+      const agreeTermsOk = validateRequired(agreeTermsInput, agreeTermsHelp, () => agreeTermsInput.checked, 'You must agree to the terms.');
+
+      const phishingPicked = document.querySelector('input[name="phishing"]:checked');
+      const phishingMethodOk = !!phishingPicked;
+      phishingHelp.textContent = phishingMethodOk ? '' : 'Please answer the question above.';
+      phishingHelp.className = phishingMethodOk ? 'help' : 'help is-danger';
+
+      // this needs to be changed for the oneUser question to control 
+
+      // const oneUserPicked = document.querySelector('input[name="oneUser"]:checked');
+      // const oneUserMethodOk = !!oneUserPicked;
+      // oneUserMethodHelp.textContent = oneUserMethodOk ? '' : 'Please answer the question above.';
+      // oneUserMethodHelp.className = oneUserMethodOk ? 'help' : 'help is-danger';
+
+      // if (!phoneField.classList.contains('is-hidden') && !phoneIsValid) {
+      //   phoneHelp.textContent = 'Enter a valid phone number before submitting.';
+      //   phoneHelp.className = 'help is-danger';
+      //   phoneInput.classList.add('is-danger');
+      // }
+
+      // const affectedPhoneOk = phoneField.classList.contains('is-hidden') || phoneIsValid;
+
+      // If anything failed, stop here and don't call fetch
+      // affectedPhoneOk may need to be reworked depending on how the oneUser section gets changed.
+      // if (!requestorOk || !affectedEmailOk || !agreeTermsOk || !phishingMethodOk || !oneUserOk || !affectedPhoneOk) {
+      //   return;
+      // }
+
+      if (!phoneToBlockOk || !requestorOk || !affectedEmailOk || !agreeTermsOk || !phishingMethodOk) {
+        return;
+      }
+
+      const FLOW_URL = "https://default63545f2732324d74a44dcdd4570634.02.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/28/workflows/950cf24f848e445085096259c54c3055/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=tINJDzWodFv-033c8uX7enXe6WiUaireujdVcXmq-_g"
+
+      const payload = {
+        requestId: requestId,
+        submittedAt: getSubmissionTime(),
+        phoneToBlock: libphonenumber.parsePhoneNumberFromString(phoneToBlockInput.value.trim())?.number,
+        requestor: document.getElementById('requestor').value,
+        affectedEmail: document.getElementById('affectedEmail').value,
+        affectedPhone: libphonenumber.parsePhoneNumberFromString(affectedPhoneInput.value.trim())?.number,
+        phishing: document.querySelector('input[name="phishing"]:checked')?.value,
+        oneUser: document.querySelector('input[name="oneUser"]:checked')?.value,
+        agreedToTerms: document.getElementById('agreeTermsInput').checked
+      };
+
+      status.textContent = 'Submitting...';
+
+      try {
+        const response = await fetch(FLOW_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          status.textContent = 'Submitted successfully.';
+          form.reset();
+          requestId = newRequestId(); // fresh ID for the next request
+        } else {
+          status.textContent = 'Submission failed. Please try again.';
+        }
+      } catch (err) {
+        status.textContent = 'Error connecting to server.';
+      }
+    });
+  </script>
+
+</body>
+</html>
